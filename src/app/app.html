@@ -1,0 +1,30 @@
+<div class="board" (contextmenu)="$event.preventDefault()">
+  @for (row of matrix; track $index) {
+   <div class="row">
+    @for (x of row; track $index) {
+      <div>
+        @if (x.isFlagged) {
+          <div>
+            <button class="cell" (contextmenu)="flagCell(x, $event)" (touchstart)="onTouchStart(x, $event)" (touchend)="onTouchEnd(x)">🚩</button>
+          </div>
+        }
+        @else if (!x.isRevealed) {
+          <div>
+            <button class="cell" (click)="revealCell(x)" (contextmenu)="flagCell(x, $event)" (touchstart)="onTouchStart(x, $event)" (touchend)="onTouchEnd(x)"></button>
+          </div>
+        }
+        @else if (x.isBomb) {
+          <div>
+            <button class="cell revealed" [ngClass]="{'triggered': x === triggeredCell}">💣</button>
+          </div>
+        } 
+        @else {
+          <div>
+            <button class="cell revealed" [ngClass]="'number-' + x.bombsNearby">{{x.bombsNearby}}</button>
+          </div>
+        }
+      </div>
+    }
+   </div>
+  }
+</div>
