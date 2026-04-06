@@ -1,6 +1,5 @@
-import { JsonPipe, NgClass } from '@angular/common';
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { NgClass } from '@angular/common';
+import { Component, OnDestroy, signal } from '@angular/core';
 
 const nearbyNumberPositions: {y: number, x: number}[] = [
   {y: -1, x: -1},
@@ -14,13 +13,13 @@ const nearbyNumberPositions: {y: number, x: number}[] = [
 ];
 
 const floodFillPositions: {y: number, x: number}[] = [
- {y: -1, x: 0},
- {y: 0, x: -1},
- {y: 0, x: 1},
- {y: 1, x: 0}
-]
+  {y: -1, x: 0},
+  {y: 0, x: -1},
+  {y: 0, x: 1},
+  {y: 1, x: 0}
+];
 
-interface Cell{
+interface Cell {
   posY: number;
   posX: number;
   isBomb: boolean;
@@ -29,36 +28,83 @@ interface Cell{
   isRevealed: boolean;
 }
 
+const DIFFICULTIES: Record<string, {height: number, width: number, mines: number}> = {
+  easy:   {height: 9,  width: 9,  mines: 10},
+  medium: {height: 16, width: 16, mines: 40},
+  hard:   {height: 16, width: 30, mines: 99},
+};
+
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, JsonPipe, NgClass],
+  imports: [NgClass],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
-export class App {
-  protected readonly title = signal('minesweeper');
-  //easy 9x9 10mines
-  //medium 16x16 40mines
-  //expert 30x16 99mines
-  height: number  = 9;
+export class App implements OnDestroy {
+
+  height: number = 9;
   width: number = 9;
   mines: number = 10;
   matrix: Cell[][] = [];
   triggeredCell: Cell | null = null;
   isGameOver: boolean = false;
   isGameWon: boolean = false;
-  private bombPositions: {y: number, x: number}[] = []; 
+  private bombPositions: {y: number, x: number}[] = [];
   private totalReveals: number = 0;
   private revealCounter: number = 0;
   private longPressTimer: any = null;
   private gameStarted: boolean = false;
 
-  constructor(){
+  currentDifficulty = 'easy';
+  flagsPlaced = 0;
+  timerSecs    = signal(0);
+  resetEmoji   = signal('↺');
+  showOverlay  = signal(false);
+  overlayEmoji = signal('');
+  overlayTitle = signal('');
+  overlaySub   = signal('');
+  private timerInterval: any = null;
+
+  constructor() {
     this.generateGame();
   }
 
-  generateGame(){
-    this.totalReveals = (this.height*this.width) - this.mines;
+  ngOnDestroy(): void {
+    this.stopTimer();
+  }
+
+  setDifficulty(key: string): void {
+    const cfg = DIFFICULTIES[key];
+    if (!cfg) return;
+    this.currentDifficulty = key;
+    this.height = cfg.height;
+    this.width  = cfg.width;
+    this.mines  = cfg.mines;
+    this.resetGame();
+  }
+
+  closeOverlay(): void {
+    this.showOverlay.set(false);
+  }
+
+  resetGame(): void {
+    this.stopTimer();
+    this.matrix        = [];
+    this.bombPositions = [];
+    this.gameStarted   = false;
+    this.isGameOver    = false;
+    this.isGameWon     = false;
+    this.triggeredCell = null;
+    this.revealCounter = 0;
+    this.flagsPlaced   = 0;
+    this.timerSecs.set(0);
+    this.showOverlay.set(false);
+    this.resetEmoji.set('↺');
+    this.generateGame();
+  }
+
+  generateGame() {
+    this.totalReveals = (this.height * this.width) - this.mines;
 
     for (let i = 0; i < this.height; i++) {
       let row: Cell[] = new Array(this.width).fill(null).map((_, j) => ({
@@ -72,17 +118,17 @@ export class App {
       this.matrix.push(row);
     }
   }
-  
+
   placeMines(firstCell: Cell) {
     let excludedCells: {y: number, x: number}[] = [];
     excludedCells.push({y: firstCell.posY, x: firstCell.posX});
 
     let mineCount = 0;
 
-    while(mineCount < this.mines) {
+    while (mineCount < this.mines) {
       let newPosY: number = Math.floor(Math.random() * this.height);
       let newPosX: number = Math.floor(Math.random() * this.width);
-      
+
       if (!this.matrix[newPosY][newPosX].isBomb && !excludedCells.some(c => c.y === newPosY && c.x === newPosX)) {
         this.matrix[newPosY][newPosX].isBomb = true;
         this.bombPositions.push({y: newPosY, x: newPosX});
@@ -90,14 +136,14 @@ export class App {
       }
     }
   }
-  
+
   calculateNearbyNumbers() {
-    this.bombPositions.forEach(({y,x}) => {
+    this.bombPositions.forEach(({y, x}) => {
       for (let i = 0; i < nearbyNumberPositions.length; i++) {
         let newPosY = y + nearbyNumberPositions[i].y;
         let newPosX = x + nearbyNumberPositions[i].x;
-        
-        if(newPosY >= 0 && newPosY < this.height && newPosX >= 0 && newPosX < this.width && !this.matrix[newPosY][newPosX].isBomb) {
+
+        if (newPosY >= 0 && newPosY < this.height && newPosX >= 0 && newPosX < this.width && !this.matrix[newPosY][newPosX].isBomb) {
           this.matrix[newPosY][newPosX].bombsNearby++;
         }
       }
@@ -108,12 +154,13 @@ export class App {
     if (this.isGameOver || this.isGameWon) return;
     if (cell.isFlagged || cell.isRevealed) return;
 
-    if(!this.gameStarted) {
+    if (!this.gameStarted) {
       this.gameStarted = true;
       this.placeMines(cell);
       this.calculateNearbyNumbers();
+      this.startTimer();
     }
-    
+
     cell.isRevealed = true;
     this.revealCounter++;
 
@@ -129,48 +176,63 @@ export class App {
       this.gameOver();
     }
   }
-  
+
   flagCell(cell: Cell, event: MouseEvent) {
     event.preventDefault();
     if (this.isGameOver || this.isGameWon) return;
     if (cell.isRevealed) return;
     cell.isFlagged = !cell.isFlagged;
+    this.flagsPlaced += cell.isFlagged ? 1 : -1;
   }
-  
+
   gameOver() {
     this.isGameOver = true;
-    this.bombPositions.forEach(({y,x}) => {
+    this.stopTimer();
+    this.resetEmoji.set('😵');
+    this.bombPositions.forEach(({y, x}) => {
       this.matrix[y][x].isRevealed = true;
-      this.matrix[y][x].isFlagged = false;
+      this.matrix[y][x].isFlagged  = false;
     });
-    alert("Game Over!");
+    setTimeout(() => {
+      this.overlayEmoji.set('💥');
+      this.overlayTitle.set('Game Over');
+      this.overlaySub.set('Better luck next time');
+      this.showOverlay.set(true);
+    }, 700);
   }
 
   gameWon() {
     this.isGameWon = true;
-    this.bombPositions.forEach(({y,x}) => {
+    this.stopTimer();
+    this.resetEmoji.set('😎');
+    this.bombPositions.forEach(({y, x}) => {
       this.matrix[y][x].isFlagged = true;
     });
-    alert("Game Won!");
+    setTimeout(() => {
+      this.overlayEmoji.set('🏆');
+      this.overlayTitle.set('You Win!');
+      this.overlaySub.set(`Cleared in ${this.timerSecs()}s — nice work`);
+      this.showOverlay.set(true);
+    }, 400);
   }
 
   floodFill(cell: Cell) {
-    floodFillPositions.forEach(({y,x}) => {
+    floodFillPositions.forEach(({y, x}) => {
       let newPosY = cell.posY + y;
       let newPosX = cell.posX + x;
 
       if (newPosY >= 0 && newPosY < this.height && newPosX >= 0 && newPosX < this.width) {
         let neighbor = this.matrix[newPosY][newPosX];
-        if(!neighbor.isRevealed && !neighbor.isFlagged && !neighbor.isBomb) {
+        if (!neighbor.isRevealed && !neighbor.isFlagged && !neighbor.isBomb) {
           neighbor.isRevealed = true;
           this.revealCounter++;
 
-          if(neighbor.bombsNearby === 0){
+          if (neighbor.bombsNearby === 0) {
             this.floodFill(neighbor);
           }
         }
       }
-    })
+    });
   }
 
   onTouchStart(cell: Cell, event: TouchEvent) {
@@ -188,6 +250,17 @@ export class App {
       this.revealCell(cell);
     }
   }
+
+  private startTimer(): void {
+    this.timerInterval = setInterval(() => {
+      this.timerSecs.set(Math.min(this.timerSecs() + 1, 999));
+    }, 1000);
+  }
+
+  private stopTimer(): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+  }
 }
-
-

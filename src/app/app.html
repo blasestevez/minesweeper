@@ -1,30 +1,73 @@
-<div class="board" (contextmenu)="$event.preventDefault()">
-  @for (row of matrix; track $index) {
-   <div class="row">
-    @for (x of row; track $index) {
-      <div>
-        @if (x.isFlagged) {
-          <div>
-            <button class="cell" (contextmenu)="flagCell(x, $event)" (touchstart)="onTouchStart(x, $event)" (touchend)="onTouchEnd(x)">🚩</button>
-          </div>
-        }
-        @else if (!x.isRevealed) {
-          <div>
-            <button class="cell" (click)="revealCell(x)" (contextmenu)="flagCell(x, $event)" (touchstart)="onTouchStart(x, $event)" (touchend)="onTouchEnd(x)"></button>
-          </div>
-        }
-        @else if (x.isBomb) {
-          <div>
-            <button class="cell revealed" [ngClass]="{'triggered': x === triggeredCell}">💣</button>
-          </div>
-        } 
-        @else {
-          <div>
-            <button class="cell revealed" [ngClass]="'number-' + x.bombsNearby">{{x.bombsNearby}}</button>
-          </div>
-        }
-      </div>
-    }
-   </div>
-  }
+<div class="app-wrapper" (contextmenu)="$event.preventDefault()">
+
+  <div class="title-row">
+    <h1>Minesweeper</h1>
+    <p>Right-click or long-press to flag</p>
+  </div>
+
+  <div class="difficulty-row">
+    <button class="diff-btn" [class.active]="currentDifficulty === 'easy'"   (click)="setDifficulty('easy')">Easy</button>
+    <button class="diff-btn" [class.active]="currentDifficulty === 'medium'" (click)="setDifficulty('medium')">Medium</button>
+    <button class="diff-btn" [class.active]="currentDifficulty === 'hard'"   (click)="setDifficulty('hard')">Hard</button>
+  </div>
+
+  <div class="hud">
+    <div class="hud-stat">
+      <span class="hud-label">Mines</span>
+      <span class="hud-value">{{ mines - flagsPlaced }}</span>
+    </div>
+
+    <button class="reset-btn" (click)="resetGame()">{{ resetEmoji() }}</button>
+
+    <div class="hud-stat">
+      <span class="hud-label">Time</span>
+      <span class="hud-value">{{ timerSecs() }}</span>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board">
+      @for (row of matrix; track $index) {
+        <div class="row">
+          @for (x of row; track $index) {
+            <div>
+              @if (x.isFlagged) {
+                <div>
+                  <button class="cell" (contextmenu)="flagCell(x, $event)" (touchstart)="onTouchStart(x, $event)" (touchend)="onTouchEnd(x)">🚩</button>
+                </div>
+              }
+              @else if (!x.isRevealed) {
+                <div>
+                  <button class="cell" (click)="revealCell(x)" (contextmenu)="flagCell(x, $event)" (touchstart)="onTouchStart(x, $event)" (touchend)="onTouchEnd(x)"></button>
+                </div>
+              }
+              @else if (x.isBomb) {
+                <div>
+                  <button class="cell revealed" [ngClass]="{'triggered': x === triggeredCell}">💣</button>
+                </div>
+              }
+              @else {
+                <div>
+                  <button class="cell revealed" [ngClass]="'number-' + x.bombsNearby">{{x.bombsNearby}}</button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <p class="hint">First click is always safe</p>
+
+</div>
+
+<div class="overlay" [class.show]="showOverlay()">
+  <div class="overlay-card">
+    <button class="overlay-close" (click)="closeOverlay()">✕</button>
+    <span class="overlay-emoji">{{ overlayEmoji() }}</span>
+    <div class="overlay-title">{{ overlayTitle() }}</div>
+    <div class="overlay-sub">{{ overlaySub() }}</div>
+    <button class="play-again-btn" (click)="resetGame()">Play Again</button>
+  </div>
 </div>
